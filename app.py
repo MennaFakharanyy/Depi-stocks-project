@@ -224,9 +224,9 @@ elif page == "Real-time Prediction":
                 st.subheader("📊 Latest Data in Dataset")
                 st.dataframe(last_row)
 
+                # Prepare features and predict
                 X = prepare_features_for_model(last_row.iloc[-1])
                 pred = model_obj.predict(X)[0]
-
                 direction = "UP" if str(pred).lower() in ("1", "up") else "DOWN"
 
                 if direction == "UP":
@@ -246,7 +246,6 @@ elif page == "Real-time Prediction":
             "Model prediction requires the symbol to exist in your dataset for feature compatibility."
         )
 
-        # Use a dropdown to prevent invalid symbols
         symbol = st.selectbox(
             "Choose stock (must exist in dataset):",
             dataset_symbols
@@ -276,7 +275,7 @@ elif page == "Real-time Prediction":
 
                 st.dataframe(latest)
 
-                # Prepare features for prediction
+                # Prepare features and predict
                 Xlive = prepare_features_for_model(latest_row)
                 pred = model_obj.predict(Xlive)[0]
                 direction = "UP" if str(pred).lower() in ("1", "up") else "DOWN"
@@ -288,7 +287,7 @@ elif page == "Real-time Prediction":
 
             except Exception as e:
                 st.error(f"❌ Error fetching or predicting real-time data: {e}")
-                
+            
 else:  # About
     st.title("About this App")
     st.markdown(
