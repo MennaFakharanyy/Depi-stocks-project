@@ -207,7 +207,7 @@ elif page == "Prediction":
                     'day_of_week','is_month_end','is_quarter_end','daily_return']
 
     # ------------------------
-    # 1️⃣ Historical Dataset
+    #  Historical Dataset
     # ------------------------
     if mode == "From Dataset (Historical)":
         st.info("Uses your cleaned dataset to show the last available record.")
@@ -235,7 +235,7 @@ elif page == "Prediction":
                 st.error(f"❌ Prediction error: {e}")
 
     # ------------------------
-    # 2️⃣ Real-Time via YFinance
+    #  Real-Time via YFinance
     # ------------------------
     elif mode == "Real-Time (YFinance)":
         st.info("Fetches live market prices from Yahoo Finance. Model prediction requires the symbol to exist in your dataset.")
@@ -296,7 +296,7 @@ elif page == "Prediction":
                 st.error(f"❌ Error fetching or predicting real-time data: {e}")
 
     # ------------------------
-    # 3️⃣ Auto Live Prediction (Multiple Stocks)
+    #  Auto Live Prediction (Multiple Stocks)
     # ------------------------
     elif mode == "Auto Live Prediction (Multiple Stocks)":
         st.info("Automatically fetches live prices and predictions for multiple top-performing stocks today.")
