@@ -299,7 +299,7 @@ elif page == "Prediction":
     #  Auto Live Prediction (Multiple Stocks)
     # ------------------------
     elif mode == "Auto Live Prediction (Multiple Stocks)":
-        st.info("Automatically fetches live prices and predictions for multiple top-performing stocks today.")
+        st.info("Automatically fetches live prices and predictions for multiple top-performing stocks today , it might Take Few minutes PLEASE Wait")
 
             # Batch fetch for top performing stocks today
         def get_top_stocks_today_fast(symbols, top_n=5):
