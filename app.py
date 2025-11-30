@@ -316,13 +316,15 @@ elif mode == "Real-Time (YFinance)":
 elif mode == "Auto Live Prediction (Multiple Stocks)":
     st.info("Automatically fetches live prices and predictions for multiple top-performing stocks today.")
 
-    # Function to get today's return for a list of symbols
-    def get_top_stocks_today(symbols, top_n=5):
+        # Batch fetch for top performing stocks today
+    def get_top_stocks_today_fast(symbols, top_n=5):
+        # Download last 2 days for all symbols at once
+        df = yf.download(symbols, period="2d", interval="1d", group_by='ticker', threads=True, progress=False)
+        
         data = []
         for sym in symbols:
             try:
-                ticker = yf.Ticker(sym)
-                hist = ticker.history(period="2d", interval="1d")
+                hist = df[sym] if len(symbols) > 1 else df
                 if len(hist) >= 2:
                     latest = hist.iloc[-1]
                     prev = hist.iloc[-2]
@@ -330,13 +332,12 @@ elif mode == "Auto Live Prediction (Multiple Stocks)":
                     data.append({'symbol': sym, 'daily_return': daily_return})
             except Exception:
                 continue
-        df = pd.DataFrame(data)
-        df = df.sort_values(by='daily_return', ascending=False)
-        return df['symbol'].head(top_n).tolist()
+        df_returns = pd.DataFrame(data)
+        df_returns = df_returns.sort_values(by='daily_return', ascending=False)
+        return df_returns['symbol'].head(top_n).tolist()
 
-    # Get top 5 stocks today
-    auto_symbols = get_top_stocks_today(dataset_symbols, top_n=5)
-    st.write("Top 5 performing stocks today:", auto_symbols)
+    # Example usage
+    auto_symbols = get_top_stocks_today_fast(dataset_symbols, top_n=5)
     
     st.subheader("Live Stock Predictions")
 
