@@ -182,182 +182,188 @@ elif page == "EDA":
             except Exception as e:
                 st.error(f"Prediction failed: {e}")
 
-st.title("📈 Real-Time Stock Prediction & Live Price Dashboard")
 
-# -------------------------------------
-# Dataset & Model Check
-# -------------------------------------
-if df_main is None:
-    st.warning("Dataset not loaded.")
-    st.stop()
 
-if model_obj is None or not hasattr(model_obj, "predict"):
-    st.warning("No valid trained model loaded. Please upload a proper .pkl model.")
-    st.stop()
+elif page == "Real-time Prediction":
 
-# -------------------------------------
-# Detect ticker column
-# -------------------------------------
-ticker_candidates = [c for c in df_main.columns if c.lower() in ("ticker","symbol","name","stock","code")]
-if not ticker_candidates:
-    st.error("❌ No ticker/symbol column found in dataset.")
-    st.stop()
-ticker_col = ticker_candidates[0]
+    # -------------------------------------
+    # Dataset & Model Check
+    # -------------------------------------
+    if df_main is None:
+        st.warning("Dataset not loaded.")
+        st.stop()
 
-dataset_symbols = sorted(df_main[ticker_col].dropna().unique().tolist())
+    if model_obj is None or not hasattr(model_obj, "predict"):
+        st.warning("No valid trained model loaded. Please upload a proper .pkl model.")
+        st.stop()
 
-# -------------------------------------
-# Prediction Mode Selection
-# -------------------------------------
-st.subheader("Select Prediction Mode")
-mode = st.radio(
-    "Prediction Source",
-    ["From Dataset (Historical)", "Real-Time (YFinance)", "Auto Live Prediction (Multiple Stocks)"],
-    help="Choose whether to predict using historical dataset, live market data, or auto live prediction."
-)
+    # -------------------------------------
+    # Detect ticker column
+    # -------------------------------------
+    ticker_candidates = [c for c in df_main.columns if c.lower() in ("ticker","symbol","name","stock","code")]
+    if not ticker_candidates:
+        st.error("❌ No ticker/symbol column found in dataset.")
+        st.stop()
+    ticker_col = ticker_candidates[0]
 
-# Features expected by the model
-model_features = ['volatility_20','volatility_50','SMA_20','SMA_50','RSI_14',
-                  'day_of_week','is_month_end','is_quarter_end','daily_return']
+    dataset_symbols = sorted(df_main[ticker_col].dropna().unique().tolist())
 
-# ------------------------
-# 1️⃣ Historical Dataset
-# ------------------------
-if mode == "From Dataset (Historical)":
-    st.info("Uses your cleaned dataset to show the last available record.")
-    symbol = st.selectbox("Choose stock:", dataset_symbols)
+    # -------------------------------------
+    # Prediction Mode Selection
+    # -------------------------------------
+    st.subheader("Select Prediction Mode")
+    mode = st.radio(
+        "Prediction Source",
+        ["From Dataset (Historical)", "Real-Time (YFinance)", "Auto Live Prediction (Multiple Stocks)"],
+        help="Choose whether to predict using historical dataset, live market data, or auto live prediction."
+    )
 
-    if st.button("Predict Using Dataset"):
-        try:
-            stock_rows = df_main[df_main[ticker_col]==symbol]
-            if stock_rows.empty:
-                st.warning("No rows for this stock in your dataset.")
-                st.stop()
+    # Features expected by the model
+    model_features = ['volatility_20','volatility_50','SMA_20','SMA_50','RSI_14',
+                    'day_of_week','is_month_end','is_quarter_end','daily_return']
 
-            latest_row = stock_rows.tail(1).iloc[-1]
-            st.subheader("📊 Latest Data in Dataset")
-            st.dataframe(stock_rows.tail(1))
+    # ------------------------
+    # 1️⃣ Historical Dataset
+    # ------------------------
+    if mode == "From Dataset (Historical)":
+        st.info("Uses your cleaned dataset to show the last available record.")
+        symbol = st.selectbox("Choose stock:", dataset_symbols)
 
-            X = latest_row[model_features].values.reshape(1, -1)
-            pred = model_obj.predict(X)[0]
-            direction = "↗️ Up" if pred == 1 else "↘️ Down"
+        if st.button("Predict Using Dataset"):
+            try:
+                stock_rows = df_main[df_main[ticker_col]==symbol]
+                if stock_rows.empty:
+                    st.warning("No rows for this stock in your dataset.")
+                    st.stop()
 
-            st.success(f"Prediction for {symbol}: {direction}")
-            st.write("Latest close:", float(latest_row['close']))
+                latest_row = stock_rows.tail(1).iloc[-1]
+                st.subheader("📊 Latest Data in Dataset")
+                st.dataframe(stock_rows.tail(1))
 
-        except Exception as e:
-            st.error(f"❌ Prediction error: {e}")
+                X = latest_row[model_features].values.reshape(1, -1)
+                pred = model_obj.predict(X)[0]
+                direction = "↗️ Up" if pred == 1 else "↘️ Down"
 
-# ------------------------
-# 2️⃣ Real-Time via YFinance
-# ------------------------
-elif mode == "Real-Time (YFinance)":
-    st.info("Fetches live market prices from Yahoo Finance. Model prediction requires the symbol to exist in your dataset.")
-    symbol = st.selectbox("Choose stock (must exist in dataset):", dataset_symbols)
+                st.success(f"Prediction for {symbol}: {direction}")
+                st.write("Latest close:", float(latest_row['close']))
 
-    if st.button("Fetch Live Price & Predict"):
-        try:
-            ticker = yf.Ticker(symbol)
-            df = ticker.history(period="6mo", interval="1d").reset_index()
-            df.rename(columns={"Date":"date","Close":"close","Open":"open"}, inplace=True)
+            except Exception as e:
+                st.error(f"❌ Prediction error: {e}")
 
-            # Compute features
-            df['daily_return'] = df['close'].pct_change()
-            for w in [20,50]:
-                df[f'volatility_{w}'] = df['daily_return'].rolling(w).std()
-            df['SMA_20'] = df['close'].rolling(20).mean()
-            df['SMA_50'] = df['close'].rolling(50).mean()
+    # ------------------------
+    # 2️⃣ Real-Time via YFinance
+    # ------------------------
+    elif mode == "Real-Time (YFinance)":
+        st.info("Fetches live market prices from Yahoo Finance. Model prediction requires the symbol to exist in your dataset.")
+        symbol = st.selectbox("Choose stock (must exist in dataset):", dataset_symbols)
 
-            delta = df['close'].diff()
-            gain = delta.clip(lower=0)
-            loss = -delta.clip(upper=0)
-            avg_gain = gain.ewm(com=13, adjust=False).mean()
-            avg_loss = loss.ewm(com=13, adjust=False).mean()
-            rs = avg_gain / avg_loss
-            df['RSI_14'] = 100 - (100 / (1 + rs))
+        if st.button("Fetch Live Price & Predict"):
+            try:
+                ticker = yf.Ticker(symbol)
+                df = ticker.history(period="6mo", interval="1d").reset_index()
+                df.rename(columns={"Date":"date","Close":"close","Open":"open"}, inplace=True)
 
-            df['day_of_week'] = df['date'].dt.dayofweek
-            df['is_month_end'] = df['date'].dt.is_month_end.astype(int)
-            df['is_quarter_end'] = (df['date'].dt.month % 3 == 0).astype(int)
-            df = df.dropna()
+                # Compute features
+                df['daily_return'] = df['close'].pct_change()
+                for w in [20,50]:
+                    df[f'volatility_{w}'] = df['daily_return'].rolling(w).std()
+                df['SMA_20'] = df['close'].rolling(20).mean()
+                df['SMA_50'] = df['close'].rolling(50).mean()
 
-            latest_row = df.iloc[-1]
-            prev_close = df.iloc[-2]['close']
+                delta = df['close'].diff()
+                gain = delta.clip(lower=0)
+                loss = -delta.clip(upper=0)
+                avg_gain = gain.ewm(com=13, adjust=False).mean()
+                avg_loss = loss.ewm(com=13, adjust=False).mean()
+                rs = avg_gain / avg_loss
+                df['RSI_14'] = 100 - (100 / (1 + rs))
 
-            st.subheader("📊 Live Market Data")
-            st.write(f"**Symbol:** {symbol}")
-            st.write(f"**Date:** {latest_row['date'].date()}")
-            st.metric("Latest Close Price", f"${latest_row['close']:.2f}",
-                      f"{latest_row['close'] - prev_close:.2f}")
-            st.dataframe(df.tail(5))
+                df['day_of_week'] = df['date'].dt.dayofweek
+                df['is_month_end'] = df['date'].dt.is_month_end.astype(int)
+                df['is_quarter_end'] = (df['date'].dt.month % 3 == 0).astype(int)
+                df = df.dropna()
 
-            Xlive = latest_row[model_features].values.reshape(1, -1)
-            pred = model_obj.predict(Xlive)[0]
-            direction = "↗️ Up" if pred == 1 else "↘️ Down"
-            st.success(f"Prediction for {symbol}: {direction}")
-            st.write("Latest close:", float(latest_row['close']))
+                latest_row = df.iloc[-1]
+                prev_close = df.iloc[-2]['close']
 
-        except Exception as e:
-            st.error(f"❌ Error fetching or predicting real-time data: {e}")
+                st.subheader("📊 Live Market Data")
+                st.write(f"**Symbol:** {symbol}")
+                st.write(f"**Date:** {latest_row['date'].date()}")
+                st.metric("Latest Close Price", f"${latest_row['close']:.2f}",
+                        f"{latest_row['close'] - prev_close:.2f}")
+                st.dataframe(df.tail(5))
 
-# ------------------------
-# 3️⃣ Auto Live Prediction (Multiple Stocks, Real-Time Active)
-# ------------------------
-elif mode == "Auto Live Prediction (Multiple Stocks)":
-    st.info("Automatically fetches live prices and predictions for all currently active stocks in your dataset.")
-    st.subheader("Live Stock Predictions")
+                Xlive = latest_row[model_features].values.reshape(1, -1)
+                pred = model_obj.predict(Xlive)[0]
+                direction = "↗️ Up" if pred == 1 else "↘️ Down"
+                st.success(f"Prediction for {symbol}: {direction}")
+                st.write("Latest close:", float(latest_row['close']))
 
-    # Fetch active stocks dynamically
-    active_symbols = []
-    for symbol in dataset_symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            df_test = ticker.history(period="2d", interval="1d")
-            if not df_test.empty:
-                active_symbols.append(symbol)
-        except:
-            continue
+            except Exception as e:
+                st.error(f"❌ Error fetching or predicting real-time data: {e}")
 
-    st.write(f"Found {len(active_symbols)} active stocks.")
+    # ------------------------
+    # 3️⃣ Auto Live Prediction (Multiple Stocks, Auto-Refresh)
+    # ------------------------
+    elif mode == "Auto Live Prediction (Multiple Stocks)":
+        st.info("Automatically fetches live prices and predictions for all currently active stocks in your dataset.")
+        
+        # Auto-refresh every 5 minutes (300,000 ms)
+        count = st_autorefresh(interval=300_000, key="auto_refresh")
 
-    for symbol in active_symbols:
-        try:
-            ticker = yf.Ticker(symbol)
-            df = ticker.history(period="1mo", interval="1d").reset_index()
-            df.rename(columns={"Date":"date","Close":"close","Open":"open"}, inplace=True)
+        st.subheader("Live Stock Predictions")
 
-            # Feature engineering
-            df['daily_return'] = df['close'].pct_change()
-            df['SMA_20'] = df['close'].rolling(20).mean()
-            df['SMA_50'] = df['close'].rolling(50).mean()
-            df['volatility_20'] = df['daily_return'].rolling(20).std()
-            df['volatility_50'] = df['daily_return'].rolling(50).std()
-            delta = df['close'].diff()
-            gain = delta.clip(lower=0)
-            loss = -delta.clip(upper=0)
-            avg_gain = gain.ewm(com=13, adjust=False).mean()
-            avg_loss = loss.ewm(com=13, adjust=False).mean()
-            rs = avg_gain / avg_loss
-            df['RSI_14'] = 100 - (100 / (1 + rs))
-            df['day_of_week'] = df['date'].dt.dayofweek
-            df['is_month_end'] = df['date'].dt.is_month_end.astype(int)
-            df['is_quarter_end'] = (df['date'].dt.month % 3 == 0).astype(int)
-            df = df.dropna()
+        # Fetch active stocks dynamically
+        active_symbols = []
+        for symbol in dataset_symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                df_test = ticker.history(period="2d", interval="1d")
+                if not df_test.empty:
+                    active_symbols.append(symbol)
+            except:
+                continue
 
-            latest_row = df.iloc[-1]
-            prev_close = df.iloc[-2]['close']
+        st.write(f"Found {len(active_symbols)} active stocks.")
 
-            Xlive = latest_row[model_features].values.reshape(1, -1)
-            pred = model_obj.predict(Xlive)[0]
-            direction = "↗️ Up" if pred == 1 else "↘️ Down"
+        for symbol in active_symbols:
+            try:
+                ticker = yf.Ticker(symbol)
+                df = ticker.history(period="1mo", interval="1d").reset_index()
+                df.rename(columns={"Date":"date","Close":"close","Open":"open"}, inplace=True)
 
-            st.write(f"### {symbol}")
-            st.metric("Latest Close Price", f"${latest_row['close']:.2f}",
-                      f"{latest_row['close'] - prev_close:.2f}")
-            st.write(f"Prediction: {direction}")
+                # Feature engineering
+                df['daily_return'] = df['close'].pct_change()
+                df['SMA_20'] = df['close'].rolling(20).mean()
+                df['SMA_50'] = df['close'].rolling(50).mean()
+                df['volatility_20'] = df['daily_return'].rolling(20).std()
+                df['volatility_50'] = df['daily_return'].rolling(50).std()
+                delta = df['close'].diff()
+                gain = delta.clip(lower=0)
+                loss = -delta.clip(upper=0)
+                avg_gain = gain.ewm(com=13, adjust=False).mean()
+                avg_loss = loss.ewm(com=13, adjust=False).mean()
+                rs = avg_gain / avg_loss
+                df['RSI_14'] = 100 - (100 / (1 + rs))
+                df['day_of_week'] = df['date'].dt.dayofweek
+                df['is_month_end'] = df['date'].dt.is_month_end.astype(int)
+                df['is_quarter_end'] = (df['date'].dt.month % 3 == 0).astype(int)
+                df = df.dropna()
 
-        except Exception as e:
-            st.error(f"❌ Error for {symbol}: {e}")
+                latest_row = df.iloc[-1]
+                prev_close = df.iloc[-2]['close']
+
+                Xlive = latest_row[model_features].values.reshape(1, -1)
+                pred = model_obj.predict(Xlive)[0]
+                direction = "↗️ Up" if pred == 1 else "↘️ Down"
+
+                st.write(f"### {symbol}")
+                st.metric("Latest Close Price", f"${latest_row['close']:.2f}",
+                        f"{latest_row['close'] - prev_close:.2f}")
+                st.write(f"Prediction: {direction}")
+
+            except Exception as e:
+                st.error(f"❌ Error for {symbol}: {e}")
 
 else:  # About
     st.title("About this App")
