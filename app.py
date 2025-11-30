@@ -34,8 +34,15 @@ def load_model_from_paths():
     for p in possible:
         if os.path.exists(p):
             try:
-                return joblib.load(p), p
-            except Exception:
+                loaded = joblib.load(p)
+                # Check if it's a valid model with predict method
+                if hasattr(loaded, "predict"):
+                    return loaded, p
+                else:
+                    st.warning(f"{p} loaded but is not a valid trained model.")
+                    return None, None
+            except Exception as e:
+                st.warning(f"Failed to load {p}: {e}")
                 continue
     return None, None
 
