@@ -229,7 +229,7 @@ elif page == "Real-time Prediction":
                 pred = model_obj.predict(X)[0]
                 direction = "UP" if str(pred).lower() in ("1", "up") else "DOWN"
 
-                if direction == "UP":
+                if pred == "UP":
                     st.success("📈 Model Prediction: **UP**")
                 else:
                     st.error("📉 Model Prediction: **DOWN**")
@@ -280,7 +280,7 @@ elif page == "Real-time Prediction":
                 pred = model_obj.predict(Xlive)[0]
                 direction = "UP" if str(pred).lower() in ("1", "up") else "DOWN"
 
-                if direction == "UP":
+                if pred == "UP":
                     st.success("📈 **Prediction: UP** — Expected bullish movement")
                 else:
                     st.error("📉 **Prediction: DOWN** — Expected bearish movement")
