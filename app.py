@@ -314,28 +314,27 @@ elif mode == "Real-Time (YFinance)":
 # 3️⃣ Auto Live Prediction (Multiple Stocks)
 # ------------------------
 elif mode == "Auto Live Prediction (Multiple Stocks)":
-    st.info("Automatically fetches live prices and predictions for multiple predefined stocks.")
+    st.info("Automatically fetches live prices and predictions for multiple top-performing stocks today.")
 
-
-# Function to get today's return for a list of symbols
+    # Function to get today's return for a list of symbols
     def get_top_stocks_today(symbols, top_n=5):
         data = []
         for sym in symbols:
             try:
                 ticker = yf.Ticker(sym)
-                hist = ticker.history(period="2d", interval="1d")  # last 2 days to calculate return
+                hist = ticker.history(period="2d", interval="1d")
                 if len(hist) >= 2:
                     latest = hist.iloc[-1]
                     prev = hist.iloc[-2]
                     daily_return = (latest['Close'] - prev['Close']) / prev['Close']
                     data.append({'symbol': sym, 'daily_return': daily_return})
-            except Exception as e:
+            except Exception:
                 continue
         df = pd.DataFrame(data)
         df = df.sort_values(by='daily_return', ascending=False)
         return df['symbol'].head(top_n).tolist()
 
-    # Example usage
+    # Get top 5 stocks today
     auto_symbols = get_top_stocks_today(dataset_symbols, top_n=5)
     st.write("Top 5 performing stocks today:", auto_symbols)
     
@@ -347,12 +346,13 @@ elif mode == "Auto Live Prediction (Multiple Stocks)":
             df = ticker.history(period="3mo", interval="1d").reset_index()
             df.rename(columns={"Date":"date","Close":"close","Open":"open"}, inplace=True)
 
-            # Feature engineering (اختصار)
+            # Feature engineering
             df['daily_return'] = df['close'].pct_change()
             df['SMA_20'] = df['close'].rolling(20).mean()
             df['SMA_50'] = df['close'].rolling(50).mean()
             df['volatility_20'] = df['daily_return'].rolling(20).std()
             df['volatility_50'] = df['daily_return'].rolling(50).std()
+            
             delta = df['close'].diff()
             gain = delta.clip(lower=0)
             loss = -delta.clip(upper=0)
@@ -360,25 +360,28 @@ elif mode == "Auto Live Prediction (Multiple Stocks)":
             avg_loss = loss.ewm(com=13, adjust=False).mean()
             rs = avg_gain / avg_loss
             df['RSI_14'] = 100 - (100 / (1 + rs))
+
             df['day_of_week'] = df['date'].dt.dayofweek
             df['is_month_end'] = df['date'].dt.is_month_end.astype(int)
             df['is_quarter_end'] = (df['date'].dt.month % 3 == 0).astype(int)
-            df = df.dropna()
 
+            df = df.dropna()
             latest_row = df.iloc[-1]
             prev_close = df.iloc[-2]['close']
 
+            # Prepare features and predict
             Xlive = latest_row[model_features].values.reshape(1, -1)
             pred = model_obj.predict(Xlive)[0]
             direction = "↗️ Up" if pred == 1 else "↘️ Down"
 
+            # Display
             st.write(f"### {symbol}")
             st.metric("Latest Close Price", f"${latest_row['close']:.2f}",
                       f"{latest_row['close'] - prev_close:.2f}")
             st.write(f"Prediction: {direction}")
 
         except Exception as e:
-            st.error(f"❌ Error for {symbol}: {e}")
+            st.error(f"❌ Error fetching data or predicting for {symbol}: {e}")
 
 else:  # About
     st.title("About this App")
