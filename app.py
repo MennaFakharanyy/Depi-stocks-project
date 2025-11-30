@@ -182,9 +182,7 @@ elif page == "Real-time Prediction":
         st.warning("Dataset or model not loaded.")
         st.stop()
 
-    # ----------------------------
     # Detect ticker column
-    # ----------------------------
     ticker_candidates = [
         c for c in df_main.columns 
         if c.lower() in ("ticker", "symbol", "name", "stock", "code")
@@ -203,9 +201,11 @@ elif page == "Real-time Prediction":
         help="Choose whether to predict using your dataset or live market data."
     )
 
-    # =======================================================
-    # 1️⃣ MODE A — From Dataset (Historical)
-    # =======================================================
+    # Define model features
+    model_features = ['volatility_20','volatility_50','SMA_20','SMA_50','RSI_14',
+                      'day_of_week','is_month_end','is_quarter_end','daily_return']
+
+    # 1️⃣ MODE A — Dataset
     if mode == "From Dataset (Historical)":
         st.info("Uses your cleaned dataset to show the last available record.")
 
@@ -219,65 +219,72 @@ elif page == "Real-time Prediction":
                     st.warning("No rows for this stock in your dataset.")
                     st.stop()
 
-                last_row = stock_rows.tail(1)
+                latest_row = stock_rows.tail(1).iloc[-1]
 
                 st.subheader("📊 Latest Data in Dataset")
-                st.dataframe(last_row)
+                st.dataframe(stock_rows.tail(1))
 
-                # Prepare features and predict
-                X = prepare_features_for_model(last_row.iloc[-1])
+                # Prepare features
+                X = latest_row[model_features].values.reshape(1, -1)
                 pred = model_obj.predict(X)[0]
-                direction = "↗️ Up" if str(pred).lower() in ("1", "up") else "↘️ Down"
+                direction = "↗️ Up" if pred == 1 else "↘️ Down"
 
                 st.success(f"Prediction for {symbol}: {direction}")
+                st.write("Latest close:", float(latest_row['close']))
 
             except Exception as e:
                 st.error(f"❌ Prediction error: {e}")
 
-    # =======================================================
-    # 2️⃣ MODE B — Real-Time Using YFinance
-    # =======================================================
+    # 2️⃣ MODE B — Real-Time YFinance
     elif mode == "Real-Time (YFinance)":
         st.info(
             "Fetches live market prices from Yahoo Finance. "
-            "Model prediction requires the symbol to exist in your dataset for feature compatibility."
+            "Model prediction requires the symbol to exist in your dataset."
         )
 
-        symbol = st.selectbox(
-            "Choose stock (must exist in dataset):",
-            dataset_symbols
-        )
+        symbol = st.selectbox("Choose stock (must exist in dataset):", dataset_symbols)
 
         if st.button("Fetch Live Price & Predict"):
             try:
                 ticker = yf.Ticker(symbol)
-                hist = ticker.history(period="7d", interval="1d")
+                hist = ticker.history(period="6mo", interval="1d")  # same period as get_stock_data()
 
                 if hist.empty:
                     st.error("❌ No live data available from Yahoo Finance.")
                     st.stop()
 
-                latest = hist.tail(1)
-                latest_row = latest.iloc[-1]
+                df = hist.reset_index()
+                df.rename(columns={"Date":"date","Close":"close"}, inplace=True)
+
+                # Calculate features same as get_stock_data()
+                df['daily_return'] = df['close'].pct_change()
+                for window in [20,50]:
+                    df[f'volatility_{window}'] = df['daily_return'].rolling(window).std()
+                df['SMA_20'] = df['close'].rolling(20).mean()
+                df['SMA_50'] = df['close'].rolling(50).mean()
+                df['RSI_14'] = (100 - 100/(1 + df['close'].diff().clip(lower=0).ewm(com=13).mean() /
+                                            -df['close'].diff().clip(upper=0).ewm(com=13).mean()))
+                df['day_of_week'] = df['date'].dt.dayofweek
+                df['is_month_end'] = df['date'].dt.is_month_end.astype(int)
+                df['is_quarter_end'] = (df['date'].dt.month % 3 == 0).astype(int)
+                df = df.dropna()
+
+                latest_row = df.iloc[-1]
 
                 st.subheader("📊 Live Market Data")
                 st.write(f"**Symbol:** {symbol}")
-                st.write(f"**Date:** {latest.index[-1].date()}")
+                st.write(f"**Date:** {latest_row['date'].date()}")
+                st.metric("Latest Close Price", f"${latest_row['close']:.2f}",
+                          f"{latest_row['close'] - latest_row['close'].shift(1).fillna(latest_row['close']):.2f}")
+                st.dataframe(df.tail(5))
 
-                st.metric(
-                    "Latest Close Price",
-                    f"${latest_row['Close']:.2f}",
-                    f"{latest_row['Close'] - latest_row['Open']:.2f}"
-                )
-
-                st.dataframe(latest)
-
-                # Prepare features and predict
-                Xlive = prepare_features_for_model(latest_row)
+                # Prepare features
+                Xlive = latest_row[model_features].values.reshape(1, -1)
                 pred = model_obj.predict(Xlive)[0]
-                direction = "↗️ Up" if str(pred).lower() in ("1", "up") else "↘️ Down"
+                direction = "↗️ Up" if pred == 1 else "↘️ Down"
 
                 st.success(f"Prediction for {symbol}: {direction}")
+                st.write("Latest close:", float(latest_row['close']))
 
             except Exception as e:
                 st.error(f"❌ Error fetching or predicting real-time data: {e}")
