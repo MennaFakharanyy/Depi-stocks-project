@@ -182,7 +182,9 @@ elif page == "Real-time Prediction":
         st.warning("Dataset or model not loaded.")
         st.stop()
 
+    # ----------------------------
     # Detect ticker column
+    # ----------------------------
     ticker_candidates = [
         c for c in df_main.columns 
         if c.lower() in ("ticker", "symbol", "name", "stock", "code")
@@ -201,11 +203,13 @@ elif page == "Real-time Prediction":
         help="Choose whether to predict using your dataset or live market data."
     )
 
-    # Define model features
+    # Features expected by the model
     model_features = ['volatility_20','volatility_50','SMA_20','SMA_50','RSI_14',
                       'day_of_week','is_month_end','is_quarter_end','daily_return']
 
-    # 1️⃣ MODE A — Dataset
+    # =======================================================
+    # 1️⃣ MODE A — From Dataset (Historical)
+    # =======================================================
     if mode == "From Dataset (Historical)":
         st.info("Uses your cleaned dataset to show the last available record.")
 
@@ -235,7 +239,9 @@ elif page == "Real-time Prediction":
             except Exception as e:
                 st.error(f"❌ Prediction error: {e}")
 
-    # 2️⃣ MODE B — Real-Time YFinance
+    # =======================================================
+    # 2️⃣ MODE B — Real-Time Using YFinance
+    # =======================================================
     elif mode == "Real-Time (YFinance)":
         st.info(
             "Fetches live market prices from Yahoo Finance. "
@@ -247,14 +253,8 @@ elif page == "Real-time Prediction":
         if st.button("Fetch Live Price & Predict"):
             try:
                 ticker = yf.Ticker(symbol)
-                hist = ticker.history(period="6mo", interval="1d")  # same period as get_stock_data()
-
-                if hist.empty:
-                    st.error("❌ No live data available from Yahoo Finance.")
-                    st.stop()
-
-                df = hist.reset_index()
-                df.rename(columns={"Date":"date","Close":"close"}, inplace=True)
+                df = ticker.history(period="6mo", interval="1d").reset_index()
+                df.rename(columns={"Date":"date","Close":"close","Open":"open"}, inplace=True)
 
                 # Calculate features same as get_stock_data()
                 df['daily_return'] = df['close'].pct_change()
@@ -262,23 +262,32 @@ elif page == "Real-time Prediction":
                     df[f'volatility_{window}'] = df['daily_return'].rolling(window).std()
                 df['SMA_20'] = df['close'].rolling(20).mean()
                 df['SMA_50'] = df['close'].rolling(50).mean()
-                df['RSI_14'] = (100 - 100/(1 + df['close'].diff().clip(lower=0).ewm(com=13).mean() /
-                                            -df['close'].diff().clip(upper=0).ewm(com=13).mean()))
+
+                # RSI 14
+                delta = df['close'].diff()
+                gain = delta.clip(lower=0)
+                loss = -delta.clip(upper=0)
+                avg_gain = gain.ewm(com=13, adjust=False).mean()
+                avg_loss = loss.ewm(com=13, adjust=False).mean()
+                rs = avg_gain / avg_loss
+                df['RSI_14'] = 100 - (100 / (1 + rs))
+
                 df['day_of_week'] = df['date'].dt.dayofweek
                 df['is_month_end'] = df['date'].dt.is_month_end.astype(int)
                 df['is_quarter_end'] = (df['date'].dt.month % 3 == 0).astype(int)
-                df = df.dropna()
 
+                df = df.dropna()
                 latest_row = df.iloc[-1]
+                prev_close = df.iloc[-2]['close']
 
                 st.subheader("📊 Live Market Data")
                 st.write(f"**Symbol:** {symbol}")
                 st.write(f"**Date:** {latest_row['date'].date()}")
                 st.metric("Latest Close Price", f"${latest_row['close']:.2f}",
-                          f"{latest_row['close'] - latest_row['close'].shift(1).fillna(latest_row['close']):.2f}")
+                          f"{latest_row['close'] - prev_close:.2f}")
                 st.dataframe(df.tail(5))
 
-                # Prepare features
+                # Prepare features and predict
                 Xlive = latest_row[model_features].values.reshape(1, -1)
                 pred = model_obj.predict(Xlive)[0]
                 direction = "↗️ Up" if pred == 1 else "↘️ Down"
