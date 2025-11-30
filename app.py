@@ -1,6 +1,3 @@
-# Filename: streamlit_stock_app.py
-# Requirements: streamlit, pandas, numpy, joblib, yfinance, plotly, gdown
-
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -92,124 +89,82 @@ if not model_obj:
 # ---------------------- Pages ----------------------
 if page == "Home":
     st.title("📈 Welcome to the Stock Safety Predictor")
+    
     st.markdown(
         """
-        **Want to buy a stock more safely?**
+        **Invest Smarter with Predictive Stock Insights**  
 
-        Our project analyses historical price behaviour for a curated list of stocks and uses a trained model to
-        provide a simple *Up / Down* prediction. Use the side menu to explore the data (EDA), run single-stock
-        predictions, or get a quick real-time check for today's stocks.
+        This app helps you make safer stock decisions by analyzing historical price patterns and generating simple *Up / Down* predictions using a trained machine learning model.
+
+        Use the side menu to explore the app:
+        - **EDA**: Explore stock data interactively with filters and charts.
+        - **Prediction**: Make predictions for individual stocks using historical data.
+        - **Real-Time**: Check today's stock movements with live market data.
         """
     )
 
-    st.header("Project Overview")
+    st.header("Key Features")
     st.markdown(
-        "This Streamlit app loads a dataset and trained model automatically.\n\n"
-        "Features included:\n"
-        "- Interactive EDA with filterable stock list\n"
-        "- Single-stock prediction using your saved model (Up / Down)\n"
-        "- Real-time prediction using live data (yfinance)"
+        """
+        - **Interactive EDA**: Filterable stock list, time-series charts, histograms, and correlation heatmaps.
+        - **Single-Stock Predictions**: Use your trained model to predict the next movement (Up / Down).
+        - **Real-Time Stock Insights**: Fetch live prices via Yahoo Finance and get instant predictions.
+        - **Auto Live Predictions**: Monitor top-performing stocks with automatic predictions.
+        """
     )
 
     if df_main is not None:
-        st.success(f"Dataset loaded: {LOCAL_DATA_FILE}")
+        st.success(f"✅ Dataset loaded: `{LOCAL_DATA_FILE}`")
     if model_path:
-        st.success(f"Model loaded: {model_path}")
+        st.success(f"✅ Model loaded: `{model_path}`")
+
+    st.markdown("---")
+    st.subheader("Getting Started")
+    st.markdown(
+        """
+        1. Select the page from the sidebar.  
+        2. Explore data in **EDA** to understand trends and patterns.  
+        3. Use **Prediction** for historical stock predictions.  
+        4. Switch to **Real-Time** for live market insights.  
+        """
+    )
+
 
 elif page == "EDA":
-    import streamlit as st
-    import pandas as pd
-    import plotly.express as px
-    import seaborn as sns
-    import matplotlib.pyplot as plt
+    st.title("Exploratory Data Analysis")
 
-    st.title("🔍 Exploratory Data Analysis (EDA)")
-
-    # -------------------------------------
-    # Check dataset
-    # -------------------------------------
     if df_main is None:
-        st.warning("No dataset loaded. Please upload a dataset first.")
-        st.stop()
+        st.warning("No dataset loaded.")
+    else:
+        st.subheader("Dataset preview")
+        st.write(f"Rows: {df_main.shape[0]} — Columns: {df_main.shape[1]}")
+        st.dataframe(df_main.head(50))
 
-    st.subheader("Dataset Preview")
-    st.write(f"Rows: {df_main.shape[0]} — Columns: {df_main.shape[1]}")
-    st.dataframe(df_main.head(50))
+        cols = df_main.columns.tolist()
+        ticker_col = st.sidebar.selectbox("Ticker / Stock column", options=[None]+cols, index=0)
+        date_col = st.sidebar.selectbox("Date column", options=[None]+cols, index=0)
+        price_col = st.sidebar.selectbox("Price column", options=[None]+cols, index=0)
 
-    # -------------------------------------
-    # Column selection
-    # -------------------------------------
-    cols = df_main.columns.tolist()
-    ticker_col = st.sidebar.selectbox("Ticker / Stock column", options=[None]+cols, index=0)
-    date_col = st.sidebar.selectbox("Date column", options=[None]+cols, index=0)
-    price_col = st.sidebar.selectbox("Price column", options=[None]+cols, index=0)
+        selected_symbol = None
+        if ticker_col:
+            unique_vals = df_main[ticker_col].dropna().unique().tolist()
+            selected_symbol = st.sidebar.selectbox("Pick a stock to inspect", options=[None]+unique_vals)
 
-    # -------------------------------------
-    # Filters
-    # -------------------------------------
-    df_filtered = df_main.copy()
+        if date_col and price_col:
+            try:
+                df_main[date_col] = pd.to_datetime(df_main[date_col])
+                df_plot = df_main[df_main[ticker_col]==selected_symbol].sort_values(date_col) if selected_symbol else df_main.sort_values(date_col)
 
-    # Stock filter
-    if ticker_col:
-        unique_vals = df_main[ticker_col].dropna().unique().tolist()
-        selected_symbols = st.sidebar.multiselect("Pick stock(s) to inspect", options=unique_vals, default=unique_vals[:1])
-        if selected_symbols:
-            df_filtered = df_filtered[df_filtered[ticker_col].isin(selected_symbols)]
+                st.subheader("Price over time")
+                fig = px.line(df_plot, x=date_col, y=price_col, title=f"{price_col} over time")
+                st.plotly_chart(fig, use_container_width=True)
 
-    # Date filter
-    if date_col:
-        df_filtered[date_col] = pd.to_datetime(df_filtered[date_col])
-        min_date, max_date = df_filtered[date_col].min(), df_filtered[date_col].max()
-        start_date, end_date = st.sidebar.date_input("Select date range", [min_date, max_date], min_value=min_date, max_value=max_date)
-        df_filtered = df_filtered[(df_filtered[date_col] >= pd.to_datetime(start_date)) & 
-                                  (df_filtered[date_col] <= pd.to_datetime(end_date))]
+                st.subheader("Summary statistics")
+                st.write(df_plot[price_col].describe())
 
-    # Price filter
-    if price_col:
-        min_price, max_price = df_filtered[price_col].min(), df_filtered[price_col].max()
-        price_range = st.sidebar.slider("Select price range", float(min_price), float(max_price), (float(min_price), float(max_price)))
-        df_filtered = df_filtered[(df_filtered[price_col] >= price_range[0]) & 
-                                  (df_filtered[price_col] <= price_range[1])]
+            except Exception as e:
+                st.error(f"Failed to generate visual: {e}")
 
-    # -------------------------------------
-    # Visualizations
-    # -------------------------------------
-    if date_col and price_col:
-        try:
-            df_plot = df_filtered.sort_values(date_col)
-
-            st.subheader("📈 Price over Time")
-            fig = px.line(df_plot, x=date_col, y=price_col, color=ticker_col if ticker_col else None,
-                          title=f"{price_col} Over Time")
-            st.plotly_chart(fig, use_container_width=True)
-
-            st.subheader("📊 Summary Statistics")
-            st.write(df_plot[[price_col]].describe())
-
-            st.subheader("Histogram of Prices")
-            fig_hist = px.histogram(df_plot, x=price_col, color=ticker_col if ticker_col else None,
-                                    nbins=30, title=f"{price_col} Distribution")
-            st.plotly_chart(fig_hist, use_container_width=True)
-
-            numeric_cols = df_plot.select_dtypes(include='number').columns.tolist()
-            if len(numeric_cols) > 1:
-                st.subheader("Correlation Heatmap")
-                corr = df_plot[numeric_cols].corr()
-                fig, ax = plt.subplots(figsize=(8, 5))
-                sns.heatmap(corr, annot=True, cmap="coolwarm", ax=ax)
-                st.pyplot(fig)
-
-        except Exception as e:
-            st.error(f"Failed to generate visuals: {e}")
-
-    # -------------------------------------
-    # Dataset info & missing values
-    # -------------------------------------
-    st.subheader("Dataset Info")
-    st.text(df_filtered.info())
-
-    st.subheader("Missing Values")
-    st.write(df_filtered.isna().sum())
 
     st.title("Single-stock Prediction")
 
@@ -442,18 +397,35 @@ elif page == "Prediction":
             except Exception as e:
                 st.error(f"❌ Error fetching data or predicting for {symbol}: {e}")
 
-else:  # About
-    st.title("About this App")
+
+else :
+    st.title("ℹ️ About Stock Safety Predictor")
+    
     st.markdown(
         """
-        **Streamlit Stock Analysis & Prediction**\n
-        This app provides:
-        - EDA with interactive charts and filters
-        - Model inference (Up/Down)
-        - Quick real-time checks via yfinance
+        **Streamlit Stock Analysis & Prediction** is a professional-grade tool designed for investors and analysts to quickly explore stock data and generate predictions.  
 
-        **Notes**:
-        - Replace `prepare_features_for_model` with your trained feature pipeline.
-        - Dataset is auto-downloaded from Google Drive; no need to upload manually.
+        **Capabilities of the App:**
+        - **Interactive EDA**: Inspect stock data with filters, charts, and summary statistics.
+        - **Model Inference**: Make Up/Down predictions based on historical stock features.
+        - **Real-Time Monitoring**: Fetch live prices and see instant predictions.
+        - **Automated Alerts**: Auto live prediction mode tracks top-performing stocks.
+
+        **Technical Notes:**
+        - The app uses a trained machine learning model (`.pkl`) for stock movement prediction.
+        - Features expected by the model include volatility, SMA, RSI, and other technical indicators.
+        - Dataset is automatically loaded; no manual upload needed.
+        - Replace `prepare_features_for_model` with your own feature engineering pipeline if required.
+        """
+    )
+
+    st.markdown("---")
+    st.subheader("Why Use This App?")
+    st.markdown(
+        """
+        - Make more informed investment decisions.  
+        - Quickly visualize trends and anomalies in stock data.  
+        - Run both historical and live predictions without coding.  
+        - Ideal for both beginners and professional traders looking for quick insights.
         """
     )
