@@ -106,7 +106,7 @@ if page == "Home":
     st.header("Key Features")
     st.markdown(
         """
-        - **Interactive EDA**: Filterable stock list, time-series charts, histograms, and correlation heatmaps.
+        - **Interactive EDA**: Filterable stock list  and shows Viauals Based On User Needs
         - **Single-Stock Predictions**: Use your trained model to predict the next movement (Up / Down).
         - **Real-Time Stock Insights**: Fetch live prices via Yahoo Finance and get instant predictions.
         - **Auto Live Predictions**: Monitor top-performing stocks with automatic predictions.
