@@ -39,11 +39,24 @@ def load_model_from_paths():
                 continue
     return None, None
 
-def prepare_features_for_model(df_row):
-    """Simple feature extractor. Replace with your real feature pipeline."""
-    x = df_row.copy()
-    x = x.select_dtypes(include=[np.number]).fillna(0)
-    return x.values.reshape(1, -1)
+def prepare_features_for_model(row):
+    """
+    Converts a Series or DataFrame row into numeric ML-ready features.
+    This ensures consistency for both historical dataset rows and
+    live real-time price rows from yfinance.
+    """
+    import pandas as pd
+    import numpy as np
+
+    # If row is a Pandas Series (e.g., yfinance latest row), convert to DataFrame
+    if isinstance(row, pd.Series):
+        row = row.to_frame().T
+
+    # Keep only numeric columns (the model ignores date/text fields)
+    numeric_df = row.select_dtypes(include=[np.number]).fillna(0)
+
+    # Convert to numpy array: shape (1, n_features)
+    return numeric_df.values.reshape(1, -1)
 
 # ---------------------- App Layout ----------------------
 st.sidebar.title("Navigation")
@@ -163,29 +176,27 @@ elif page == "Prediction":
                 st.error(f"Prediction failed: {e}")
 
 elif page == "Real-time Prediction":
-    st.title("📈 Real-time Stock Prediction & Live Price Check")
+    st.title("📈 Real-Time Stock Prediction & Live Price Check")
 
     if df_main is None or model_obj is None:
         st.warning("Dataset or model not loaded.")
         st.stop()
 
-    # -------------------------------------------------------
+    # ----------------------------
     # Detect ticker column
-    # -------------------------------------------------------
+    # ----------------------------
     ticker_candidates = [
-        c for c in df_main.columns
+        c for c in df_main.columns 
         if c.lower() in ("ticker", "symbol", "name", "stock", "code")
     ]
-
     if not ticker_candidates:
-        st.error("❌ Could not detect a ticker/symbol column in your dataset.")
+        st.error("❌ No ticker/symbol column found in dataset.")
         st.stop()
 
     ticker_col = ticker_candidates[0]
     dataset_symbols = sorted(df_main[ticker_col].dropna().unique().tolist())
 
     st.subheader("Select Prediction Mode")
-
     mode = st.radio(
         "Prediction Source",
         ["From Dataset (Historical)", "Real-Time (YFinance)"],
@@ -197,7 +208,7 @@ elif page == "Real-time Prediction":
     # =======================================================
     if mode == "From Dataset (Historical)":
         st.info("Uses your cleaned dataset to show the last available record.")
-        
+
         symbol = st.selectbox("Choose stock:", dataset_symbols)
 
         if st.button("Predict Using Dataset"):
@@ -209,7 +220,7 @@ elif page == "Real-time Prediction":
                     st.stop()
 
                 last_row = stock_rows.tail(1)
-                
+
                 st.subheader("📊 Latest Data in Dataset")
                 st.dataframe(last_row)
 
@@ -219,9 +230,9 @@ elif page == "Real-time Prediction":
                 direction = "UP" if str(pred).lower() in ("1", "up") else "DOWN"
 
                 if direction == "UP":
-                    st.success(f"📈 Model Prediction: **UP**")
+                    st.success("📈 Model Prediction: **UP**")
                 else:
-                    st.error(f"📉 Model Prediction: **DOWN**")
+                    st.error("📉 Model Prediction: **DOWN**")
 
             except Exception as e:
                 st.error(f"❌ Prediction error: {e}")
@@ -231,38 +242,23 @@ elif page == "Real-time Prediction":
     # =======================================================
     elif mode == "Real-Time (YFinance)":
         st.info(
-            "Fetches real market prices from Yahoo Finance. "
-            "Model prediction is allowed only if the symbol exists in your dataset "
-            "to ensure feature compatibility."
+            "Fetches live market prices from Yahoo Finance. "
+            "Model prediction requires the symbol to exist in your dataset for feature compatibility."
         )
 
-        symbol = st.text_input(
-            "Enter stock symbol (must exist in your dataset):",
-            placeholder="AAPL, MSFT, TSLA ..."
-        ).upper().strip()
+        # Use a dropdown to prevent invalid symbols
+        symbol = st.selectbox(
+            "Choose stock (must exist in dataset):",
+            dataset_symbols
+        )
 
         if st.button("Fetch Live Price & Predict"):
-            if symbol == "":
-                st.warning("Please enter a valid ticker.")
-                st.stop()
-
-            if symbol not in dataset_symbols:
-                st.error(
-                    f"❌ '{symbol}' is not in your dataset.\n"
-                    f"Allowed symbols include: {dataset_symbols[:10]} ..."
-                )
-                st.stop()
-
             try:
                 ticker = yf.Ticker(symbol)
-
-                # -------------------------------------------------------
-                # Fetching real-time data with fallback reliability
-                # -------------------------------------------------------
                 hist = ticker.history(period="7d", interval="1d")
 
                 if hist.empty:
-                    st.error("❌ No live data received from Yahoo Finance.")
+                    st.error("❌ No live data available from Yahoo Finance.")
                     st.stop()
 
                 latest = hist.tail(1)
@@ -271,32 +267,28 @@ elif page == "Real-time Prediction":
                 st.subheader("📊 Live Market Data")
                 st.write(f"**Symbol:** {symbol}")
                 st.write(f"**Date:** {latest.index[-1].date()}")
+
                 st.metric(
                     "Latest Close Price",
                     f"${latest_row['Close']:.2f}",
                     f"{latest_row['Close'] - latest_row['Open']:.2f}"
                 )
+
                 st.dataframe(latest)
 
-                # -------------------------------------------------------
-                # Preparing features using your model's feature engineering
-                # -------------------------------------------------------
+                # Prepare features for prediction
                 Xlive = prepare_features_for_model(latest_row)
-
-                # Prediction
                 pred = model_obj.predict(Xlive)[0]
-
                 direction = "UP" if str(pred).lower() in ("1", "up") else "DOWN"
 
-                # Smart professional message
                 if direction == "UP":
-                    st.success(f"📈 **Prediction: UP** — Expected bullish movement")
+                    st.success("📈 **Prediction: UP** — Expected bullish movement")
                 else:
-                    st.error(f"📉 **Prediction: DOWN** — Expected bearish movement")
+                    st.error("📉 **Prediction: DOWN** — Expected bearish movement")
 
             except Exception as e:
-                st.error(f"❌ Error fetching or predicting using real-time data: {e}")
-
+                st.error(f"❌ Error fetching or predicting real-time data: {e}")
+                
 else:  # About
     st.title("About this App")
     st.markdown(
