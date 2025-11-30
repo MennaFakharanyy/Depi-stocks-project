@@ -182,14 +182,6 @@ elif page == "EDA":
             except Exception as e:
                 st.error(f"Prediction failed: {e}")
 
-import streamlit as st
-import yfinance as yf
-import pandas as pd
-import numpy as np
-
-# -------------------------------------
-# Title
-# -------------------------------------
 st.title("📈 Real-Time Stock Prediction & Live Price Dashboard")
 
 # -------------------------------------
@@ -269,16 +261,13 @@ elif mode == "Real-Time (YFinance)":
             df = ticker.history(period="6mo", interval="1d").reset_index()
             df.rename(columns={"Date":"date","Close":"close","Open":"open"}, inplace=True)
 
-            # -------------------
             # Compute features
-            # -------------------
             df['daily_return'] = df['close'].pct_change()
             for w in [20,50]:
                 df[f'volatility_{w}'] = df['daily_return'].rolling(w).std()
             df['SMA_20'] = df['close'].rolling(20).mean()
             df['SMA_50'] = df['close'].rolling(50).mean()
 
-            # RSI 14
             delta = df['close'].diff()
             gain = delta.clip(lower=0)
             loss = -delta.clip(upper=0)
@@ -295,9 +284,6 @@ elif mode == "Real-Time (YFinance)":
             latest_row = df.iloc[-1]
             prev_close = df.iloc[-2]['close']
 
-            # -------------------
-            # Display
-            # -------------------
             st.subheader("📊 Live Market Data")
             st.write(f"**Symbol:** {symbol}")
             st.write(f"**Date:** {latest_row['date'].date()}")
@@ -305,9 +291,6 @@ elif mode == "Real-Time (YFinance)":
                       f"{latest_row['close'] - prev_close:.2f}")
             st.dataframe(df.tail(5))
 
-            # -------------------
-            # Prediction
-            # -------------------
             Xlive = latest_row[model_features].values.reshape(1, -1)
             pred = model_obj.predict(Xlive)[0]
             direction = "↗️ Up" if pred == 1 else "↘️ Down"
@@ -318,20 +301,32 @@ elif mode == "Real-Time (YFinance)":
             st.error(f"❌ Error fetching or predicting real-time data: {e}")
 
 # ------------------------
-# 3️⃣ Auto Live Prediction (Multiple Stocks)
+# 3️⃣ Auto Live Prediction (Multiple Stocks, Real-Time Active)
 # ------------------------
 elif mode == "Auto Live Prediction (Multiple Stocks)":
-    st.info("Automatically fetches live prices and predictions for multiple predefined stocks.")
-    auto_symbols = dataset_symbols[:5]  # مثال: أول 5 أسهم فقط
+    st.info("Automatically fetches live prices and predictions for all currently active stocks in your dataset.")
     st.subheader("Live Stock Predictions")
 
-    for symbol in auto_symbols:
+    # Fetch active stocks dynamically
+    active_symbols = []
+    for symbol in dataset_symbols:
         try:
             ticker = yf.Ticker(symbol)
-            df = ticker.history(period="3mo", interval="1d").reset_index()
+            df_test = ticker.history(period="2d", interval="1d")
+            if not df_test.empty:
+                active_symbols.append(symbol)
+        except:
+            continue
+
+    st.write(f"Found {len(active_symbols)} active stocks.")
+
+    for symbol in active_symbols:
+        try:
+            ticker = yf.Ticker(symbol)
+            df = ticker.history(period="1mo", interval="1d").reset_index()
             df.rename(columns={"Date":"date","Close":"close","Open":"open"}, inplace=True)
 
-            # Feature engineering (اختصار)
+            # Feature engineering
             df['daily_return'] = df['close'].pct_change()
             df['SMA_20'] = df['close'].rolling(20).mean()
             df['SMA_50'] = df['close'].rolling(50).mean()
