@@ -1,5 +1,3 @@
-Below is a **professional, complete README.md** you can directly paste into your GitHub repo.
-I tailored it to your **Depi-stocks-project** based on everything you shared (Streamlit app, ML model, stock prediction dashboard, deployment, etc.).
 
 ---
 
@@ -145,7 +143,7 @@ Depi-stocks-project/
 
 ---
 
-## 📡 API Documentation (If Applicable)
+## 📡 API Documentation 
 
 The project uses **internal functions inside Streamlit**, not a standalone REST API.
 However, here are the callable components:
