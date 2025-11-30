@@ -227,12 +227,9 @@ elif page == "Real-time Prediction":
                 # Prepare features and predict
                 X = prepare_features_for_model(last_row.iloc[-1])
                 pred = model_obj.predict(X)[0]
-                direction = "UP" if str(pred).lower() in ("1", "up") else "DOWN"
+                direction = "↗️ Up" if str(pred).lower() in ("1", "up") else "↘️ Down"
 
-                if pred == "UP":
-                    st.success("📈 Model Prediction: **UP**")
-                else:
-                    st.error("📉 Model Prediction: **DOWN**")
+                st.success(f"Prediction for {symbol}: {direction}")
 
             except Exception as e:
                 st.error(f"❌ Prediction error: {e}")
@@ -278,16 +275,13 @@ elif page == "Real-time Prediction":
                 # Prepare features and predict
                 Xlive = prepare_features_for_model(latest_row)
                 pred = model_obj.predict(Xlive)[0]
-                direction = "UP" if str(pred).lower() in ("1", "up") else "DOWN"
+                direction = "↗️ Up" if str(pred).lower() in ("1", "up") else "↘️ Down"
 
-                if pred == "UP":
-                    st.success("📈 **Prediction: UP** — Expected bullish movement")
-                else:
-                    st.error("📉 **Prediction: DOWN** — Expected bearish movement")
+                st.success(f"Prediction for {symbol}: {direction}")
 
             except Exception as e:
                 st.error(f"❌ Error fetching or predicting real-time data: {e}")
-            
+    
 else:  # About
     st.title("About this App")
     st.markdown(
