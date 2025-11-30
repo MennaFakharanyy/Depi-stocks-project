@@ -132,7 +132,7 @@ if page == "Home":
 
 elif page == "EDA":
     st.title("Exploratory Data Analysis")
-
+    categorical_cols = df_main.select_dtypes(include=['object', 'category']).columns.tolist()
     if df_main is None:
         st.warning("No dataset loaded.")
     else:
@@ -141,7 +141,7 @@ elif page == "EDA":
         st.dataframe(df_main.head(50))
 
         cols = df_main.columns.tolist()
-        ticker_col = st.sidebar.selectbox("Ticker / Stock column", options=[None]+cols, index=0)
+        ticker_col = st.sidebar.selectbox("Select Categorical Column (Ticker / Stock)",options=[None] + categorical_cols,index=0)
         date_col = st.sidebar.selectbox("Date column", options=[None]+cols, index=0)
         price_col = st.sidebar.selectbox("Price column", options=[None]+cols, index=0)
 
@@ -166,34 +166,6 @@ elif page == "EDA":
                 st.error(f"Failed to generate visual: {e}")
 
 
-    st.title("Single-stock Prediction")
-
-    if df_main is None:
-        st.warning("No dataset loaded.")
-    elif model_obj is None:
-        st.warning("No model detected.")
-    else:
-        ticker_candidates = [c for c in df_main.columns if c.lower() in ("ticker","symbol","name","stock","code")]
-        ticker_col = ticker_candidates[0] if ticker_candidates else st.selectbox("Ticker column", options=df_main.columns)
-        symbols = sorted(df_main[ticker_col].dropna().unique().tolist())
-        chosen = st.selectbox("Choose stock", options=symbols)
-
-        df_sym = df_main[df_main[ticker_col] == chosen].copy()
-        if not df_sym.empty:
-            last_row = df_sym.sort_index().iloc[-1]
-            st.write("Preview of data row used for prediction:")
-            st.write(last_row)
-
-            X = prepare_features_for_model(last_row)
-            try:
-                pred = model_obj.predict(X)
-                label = str(pred[0])
-                if label in [0, '0', 'down', 'Down', 'DOWN']:
-                    st.warning(f"Model predicts: DOWN ({label})")
-                else:
-                    st.success(f"Model predicts: UP ({label})")
-            except Exception as e:
-                st.error(f"Prediction failed: {e}")
 
 
 elif page == "Prediction":
